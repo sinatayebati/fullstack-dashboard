@@ -12,6 +12,4 @@ export const api = createApi({
     })
 })
 
-export const {
-    useGetUserQuery,
-} = api;
+export const { useGetUserQuery } = api;
