@@ -33,12 +33,22 @@ app.use("/sales", salesRoutes)
 
 /* MONGOOSE SETUP */
 const PORT = process.env.PORT || 9000;
-mongoose.connect(process.env.MONGO_URL, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-}).then(() => {
-    app.listen(PORT, () => console.log(`Server Port: ${PORT}`))
 
-    /* ONLY ADDING DATA ONE TIME */
-    User.insertMany(dataUser);
+async function insertDataIfEmpty() {
+    const count = await User.countDocuments();
+    if (count === 0) {
+        try {
+            await User.insertMany(dataUser);
+            console.log("Sample data inserted successfully");
+        } catch (error) {
+            console.error("Error inserting sample data:", error);
+        }
+    } else {
+        console.log("Database already contains data, skipping insertion");
+    }
+}
+
+mongoose.connect(process.env.MONGO_URL).then(() => {
+    app.listen(PORT, () => console.log(`Server Port: ${PORT}`));
+    insertDataIfEmpty();
 }).catch((error) => console.log(`${error} did not connect`));
