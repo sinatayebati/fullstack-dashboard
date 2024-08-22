@@ -12,7 +12,9 @@ import salesRoutes from "./routes/sales.js"
 
 // DATA IMPORTS
 import User from "./models/User.js";
-import { dataUser } from "./data/index.js";
+import Product from "./models/Product.js";
+import ProductStat from './models/ProductStat.js';
+import { dataUser, dataProduct, dataProductStat } from "./data/index.js";
 
 /* CONFIGURATION */ 
 dotenv.config();
@@ -35,16 +37,26 @@ app.use("/sales", salesRoutes)
 const PORT = process.env.PORT || 9000;
 
 async function insertDataIfEmpty() {
-    const count = await User.countDocuments();
-    if (count === 0) {
-        try {
-            await User.insertMany(dataUser);
-            console.log("Sample data inserted successfully");
-        } catch (error) {
-            console.error("Error inserting sample data:", error);
+    try {
+        const collections = [
+            { model: User, data: dataUser, name: 'User' },
+            { model: Product, data: dataProduct, name: 'Product' },
+            { model: ProductStat, data: dataProductStat, name: 'ProductStat' }
+        ];
+
+        for (const collection of collections) {
+            const count = await collection.model.countDocuments();
+            if (count === 0) {
+                await collection.model.insertMany(collection.data);
+                console.log(`${collection.name} data inserted successfully`);
+            } else {
+                console.log(`${collection.name} collection already contains data, skipping insertion`);
+            }
         }
-    } else {
-        console.log("Database already contains data, skipping insertion");
+
+        console.log("Data insertion process completed");
+    } catch (error) {
+        console.error("Error during data insertion:", error);
     }
 }
 
