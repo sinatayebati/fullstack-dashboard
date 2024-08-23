@@ -50,7 +50,7 @@ async function insertDataIfEmpty() {
                 await collection.model.insertMany(collection.data);
                 console.log(`${collection.name} data inserted successfully`);
             } else {
-                console.log(`${collection.name} collection already contains data, skipping insertion`);
+                console.log(`PASS! ${collection.name} collection already contains data, skipping insertion`);
             }
         }
 
