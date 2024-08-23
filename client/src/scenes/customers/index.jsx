@@ -12,9 +12,58 @@ const Customers = () => {
     const { data, isLoading } = useGetCustomersQuery();
     // console.log("🚀 ~ Customers ~ data:", data)
 
+    const columns = [
+        {
+          field: "_id",
+          headerName: "ID",
+          flex: 1,
+        },
+        {
+          field: "name",
+          headerName: "Name",
+          flex: 0.5,
+        },
+        {
+          field: "email",
+          headerName: "Email",
+          flex: 1,
+        },
+        {
+          field: "phoneNumber",
+          headerName: "Phone Number",
+          flex: 0.5,
+          renderCell: (params) => {
+            if (params.value) {
+              return params.value.replace(/^(\d{3})(\d{3})(\d{4})/, "($1)$2-$3");
+            }
+            return "N/A";
+          },
+        },
+        {
+          field: "country",
+          headerName: "Country",
+          flex: 0.4,
+        },
+        {
+          field: "occupation",
+          headerName: "Occupation",
+          flex: 1,
+        },
+        {
+          field: "role",
+          headerName: "Role",
+          flex: 0.5,
+        },
+      ];
+
   return (
     <Box m="1.5rem 2.5rem">
-        
+        <DataGrid
+            loading={isLoading || !data}
+            getRowId={(row) => row._id}
+            rows={data || []}
+            columns={columns}
+        />
     </Box>
   )
 }
