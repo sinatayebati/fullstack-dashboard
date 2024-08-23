@@ -50,6 +50,30 @@ const Product = ({
           {description}
         </Typography>
       </CardContent>
+      <CardActions>
+        <Button
+          variant='primary'
+          size='small'
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          See More
+        </Button>
+      </CardActions>
+      <Collapse
+        in={isExpanded}
+        timeout="auto"
+        unmountOnExit
+        sx={{
+          color: theme.palette.neutral[300]
+        }}
+      >
+        <CardContent>
+          <Typography>id: {_id}</Typography>
+          <Typography>Supply Left: {supply}</Typography>
+          <Typography>Yearly Sales This Year: {stat.yearlySalesTotal}</Typography>
+          <Typography>Yearly Units Sold This Year: {stat.yearlyTotalSoldUnits}</Typography>
+        </CardContent>
+      </Collapse>
     </Card>
   )
 }
@@ -66,7 +90,7 @@ const Products = () => {
           <Box
             mt="20px"
             display="grid"
-            gridTemplateColumn="repeat(4, minmax(0, 1fr))"
+            gridTemplateColumns="repeat(4, minmax(0, 1fr))"
             justifyContent="space-between"
             rowGap="20px"
             columnGap="1.33%"
@@ -74,6 +98,29 @@ const Products = () => {
               "& > div": { gridColumn: isNonMobile ? undefined : "span 4" }
             }}
           >
+            {data.map(({
+              _id,
+              name,
+              description,
+              price,
+              rating,
+              category,
+              supply,
+              stat,
+            }) => (
+              <Product
+                key={_id}
+                _id={_id}
+                name={name}
+                description={description}
+                price={price}
+                rating={rating}
+                category={category}
+                supply={supply}
+                stat={stat}
+              />
+            )
+            )}
           </Box>
         ) : (
           <>Loading...</>
