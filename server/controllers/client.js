@@ -34,7 +34,7 @@ export const getCustomers = async (req, res) => {
   }
 };
 
-export const getTranactions = async (req, res) => {
+export const getTransactions = async (req, res) => {
   try {
     // sort should like this: { "field": "userId", "sort": "desc" }
     const { page = 1, pageSize = 20, sort = null, search = "" } = req.query;
