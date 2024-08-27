@@ -10,16 +10,16 @@ import generalRoutes from "./routes/general.js"
 import managementRoutes from "./routes/management.js"
 import salesRoutes from "./routes/sales.js"
 
-
-
 // DATA IMPORTS
 import User from "./models/User.js";
 import Product from "./models/Product.js";
 import ProductStat from "./models/ProductStat.js";
+import Transaction from './models/Transaction.js';
 import {
   dataUser,
   dataProduct,
   dataProductStat,
+  dataTransaction,
 } from "./data/index.js";
 
 /* CONFIGURATION */
@@ -48,7 +48,8 @@ async function insertDataIfEmpty() {
         const collections = [
             { model: User, data: dataUser, name: 'User' },
             { model: Product, data: dataProduct, name: 'Product' },
-            { model: ProductStat, data: dataProductStat, name: 'ProductStat' }
+            { model: ProductStat, data: dataProductStat, name: 'ProductStat' },
+            { model: Transaction, data: dataTransaction, name: 'Transaction' }
         ];
 
         for (const collection of collections) {
