@@ -69,11 +69,10 @@ const Customers = () => {
               "& .MuiDataGrid-cell": {
                 borderBottom: "none",
               },
-              "& .MuiDataGrid-columnHeader": {
+              "& .MuiDataGrid-columnHeaders": {
                 backgroundColor: theme.palette.background.alt,
-              },
-              "& .MuiDataGrid-scrollbarFiller": {
-                backgroundColor: theme.palette.background.alt,
+                color: theme.palette.secondary[100],
+                borderBottom: "none",
               },
               "& .MuiDataGrid-virtualScroller": {
                 backgroundColor: theme.palette.primary.light,
