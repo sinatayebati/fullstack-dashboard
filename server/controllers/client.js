@@ -57,14 +57,10 @@ export const getTransactions = async (req, res) => {
       ],
     })
       .sort(sortFormatted)
-      .skip(page * pageSize)
+      .skip((page-1) * pageSize)
       .limit(pageSize);
 
     const total = await Transaction.countDocuments({
-      $or: [
-        { cost: { $regex: new RegExp(search, "i") } },
-        { userId: { $regex: new RegExp(search, "i") } },
-      ],
     });
 
     res.status(200).json({
