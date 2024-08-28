@@ -24,13 +24,9 @@ const Transactions = () => {
   });
 
   useEffect(() => {
-    console.log("Page changed to:", page);
     refetch();
   }, [page, pageSize, sort, search, refetch]);
-
-  console.log("Transaction ~ data:", data);
-  console.log("Current page:", page);
-  console.log("Current pageSize:", pageSize);
+  // console.log("Transaction ~ data:", data);
 
   const columns = [
     {
@@ -64,12 +60,10 @@ const Transactions = () => {
   ];
 
   const handlePageChange = (newPage) => {
-    console.log("Page change requested:", newPage);
     setPage(newPage);
   };
 
   const handlePageSizeChange = (newPageSize) => {
-    console.log("Page size change requested:", newPageSize);
     setPageSize(newPageSize);
   };
 
