@@ -15,11 +15,13 @@ import User from "./models/User.js";
 import Product from "./models/Product.js";
 import ProductStat from "./models/ProductStat.js";
 import Transaction from "./models/Transaction.js";
+import OverallStat from './models/OverallStat.js';
 import {
   dataUser,
   dataProduct,
   dataProductStat,
   dataTransaction,
+  dataOverallStat,
 } from "./data/index.js";
 
 /* CONFIGURATION */
@@ -49,7 +51,8 @@ async function insertDataIfEmpty() {
             { model: User, data: dataUser, name: 'User' },
             { model: Product, data: dataProduct, name: 'Product' },
             { model: ProductStat, data: dataProductStat, name: 'ProductStat' },
-            { model: Transaction, data: dataTransaction, name: 'Transaction' }
+            { model: Transaction, data: dataTransaction, name: 'Transaction' },
+            { model: OverallStat, data: dataOverallStat, name: 'OverallStat' },
         ];
 
         for (const collection of collections) {
