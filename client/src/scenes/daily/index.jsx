@@ -2,7 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { 
     useTheme,
     Box,
+    Typography,
 } from '@mui/material';
+import { styled } from '@mui/system';
 import Header from 'components/Header';
 import { ResponsiveLine } from '@nivo/line';
 import { useGetSalesQuery } from 'state/api';
@@ -52,26 +54,56 @@ const Daily = () => {
         return [formattedData];
     }, [data, startDate, endDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    const DatePickerWrapper = styled(Box)(({ theme }) => ({
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        marginLeft: theme.spacing(2),
+        '& .react-datepicker-wrapper': {
+          width: '100%',
+        },
+        '& .react-datepicker__input-container input': {
+          width: '100%',
+          padding: theme.spacing(1),
+          border: `1px solid ${theme.palette.grey[300]}`,
+          borderRadius: theme.shape.borderRadius,
+          fontSize: '0.875rem',
+        },
+      }));
+      
+      const DateLabel = styled(Typography)(({ theme }) => ({
+        marginBottom: theme.spacing(0.5),
+        fontSize: '0.75rem',
+        fontWeight: 'bold',
+        color: theme.palette.text.secondary,
+      }));
+
   return (
     <Box m="1.5rem 2.5rem">
         <Header title="DAILY SALES" subTitle="Chart of daily sales" />
         <Box height="75vh">
-            <Box display="flex" justifyContent="flex-end">
+            <Box display="flex" justifyContent="flex-end" alignItems="flex-end">
+            <DatePickerWrapper>
+                <DateLabel>Start Date</DateLabel>
                 <DatePicker 
-                    selected={startDate}
-                    onChange={(date) => setStartDate(date)}
-                    selectsStart
-                    startDate={startDate}
-                    endDate={endDate}
+                selected={startDate}
+                onChange={(date) => setStartDate(date)}
+                selectsStart
+                startDate={startDate}
+                endDate={endDate}
                 />
+            </DatePickerWrapper>
+            <DatePickerWrapper>
+                <DateLabel>End Date</DateLabel>
                 <DatePicker 
-                    selected={endDate}
-                    onChange={(date) => setEndDate(date)}
-                    selectedEnd
-                    startDate={startDate}
-                    endDate={endDate}
-                    minDate={startDate}
+                selected={endDate}
+                onChange={(date) => setEndDate(date)}
+                selectsEnd
+                startDate={startDate}
+                endDate={endDate}
+                minDate={startDate}
                 />
+            </DatePickerWrapper>
             </Box>
 
             {data ? (
