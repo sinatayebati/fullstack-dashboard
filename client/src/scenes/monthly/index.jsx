@@ -8,6 +8,7 @@ import { ResponsiveLine } from '@nivo/line';
 import { useGetSalesQuery } from 'state/api';
 
 const Monthly = () => {
+    // TODO: righ now we only have data for 2021, later add the month/year picking logic
     const { data } = useGetSalesQuery();
     const theme = useTheme();
 
