@@ -11,7 +11,7 @@ import { geoData } from 'state/geoData';
 const Geography = () => {
     const theme = useTheme();
     const { data } = useGetGeographyQuery();
-    console.log("🚀 ~ Geography ~ data:", data)
+    // console.log("🚀 ~ Geography ~ data:", data)
     
   return (
     <Box m="1.5rem 2.5rem">
