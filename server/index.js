@@ -16,12 +16,14 @@ import Product from "./models/Product.js";
 import ProductStat from "./models/ProductStat.js";
 import Transaction from "./models/Transaction.js";
 import OverallStat from './models/OverallStat.js';
+import AffiliateStat from './models/AffitiliateStat.js';
 import {
   dataUser,
   dataProduct,
   dataProductStat,
   dataTransaction,
   dataOverallStat,
+  dataAffiliateStat
 } from "./data/index.js";
 
 /* CONFIGURATION */
@@ -53,6 +55,7 @@ async function insertDataIfEmpty() {
             { model: ProductStat, data: dataProductStat, name: 'ProductStat' },
             { model: Transaction, data: dataTransaction, name: 'Transaction' },
             { model: OverallStat, data: dataOverallStat, name: 'OverallStat' },
+            { model: AffiliateStat, data: dataAffiliateStat, name: 'AffiliateStat' },
         ];
 
         for (const collection of collections) {
