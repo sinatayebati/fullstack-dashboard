@@ -74,7 +74,7 @@ const BreakdownChart = ({ isDashboard = false }) => {
         colors={{ datum: "data.color" }}
         margin={
             isDashboard
-                ? { top: 40, right: 80, bottom: 100, left: 50 }
+                ? { top: 40, right: 80, bottom: 100, left: 60 }
                 : { top: 40, right: 80, bottom: 80, left: 80 }
         }
         sortByValue={true}
