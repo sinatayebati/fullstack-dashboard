@@ -1,3 +1,4 @@
+import React, { useEffect } from "react";
 import { CssBaseline, ThemeProvider } from "@mui/material";
 import { createTheme } from "@mui/material/styles";
 import { useMemo } from "react";
@@ -20,6 +21,17 @@ import Performance from "scenes/performance";
 function App() {
   const mode = useSelector((state) => state.global.mode);
   const theme = useMemo(() => createTheme(themeSettings(mode)), [mode]);
+
+  useEffect(() => {
+    if (mode === 'dark') {
+      document.documentElement.style.setProperty('--scrollbar-track', '#2b2b2b');
+      document.documentElement.style.setProperty('--scrollbar-thumb', '#808080');
+    } else {
+      document.documentElement.style.setProperty('--scrollbar-track', '#f0f0f0');
+      document.documentElement.style.setProperty('--scrollbar-thumb', '#c0c0c0');
+    }
+  }, [mode]);
+
   return (
     <div className="app">
       <BrowserRouter>
