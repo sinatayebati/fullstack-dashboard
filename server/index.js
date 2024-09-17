@@ -43,6 +43,10 @@ app.use("/general", generalRoutes);
 app.use("/management", managementRoutes);
 app.use("/sales", salesRoutes);
 
+// Add this health check route
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
 
 /* MONGOOSE SETUP */
 const PORT = process.env.PORT || 9000;
