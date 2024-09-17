@@ -1,2 +1,17 @@
+# Ignore node_modules
 node_modules
-/.env
+
+# Ignore all .env files
+*.env
+
+# Ignore logs
+*.log
+
+# Ignore the .git directory
+.git
+
+# Ignore any .DS_Store files (for macOS users)
+.DS_Store
+
+# Ignore any test coverage reports
+coverage
