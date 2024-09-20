@@ -5,7 +5,10 @@
    ```
    export $(cat ./server/.env | xargs) && docker-compose up --build
    ```
-
+   To build your container with `langchain_service` for the first time:
+   ```
+   export $(cat ./server/.env | xargs) && export $(cat ./langchain_service/.env | xargs) && docker-compose up --build
+   ```
    To start your containers without rebuilding:
    ```
    docker-compose up

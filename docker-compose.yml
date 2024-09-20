@@ -37,6 +37,21 @@ services:
     networks:
       - app-network
 
+  langchain_service:
+    build:
+      context: ./langchain_service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    env_file:
+      - ./langchain_service/.env
+    volumes:
+      - ./langchain_service:/app
+    networks:
+      - app-network
+
 volumes:
   mongodb_data:
 
