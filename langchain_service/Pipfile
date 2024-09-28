@@ -16,6 +16,9 @@ pymongo = "*"
 pypdf = "*"
 ipykernel = "*"
 notebook = "*"
+datasets = "*"
+pandas = "*"
+pillow = "*"
 
 [dev-packages]
 
