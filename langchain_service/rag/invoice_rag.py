@@ -19,6 +19,10 @@ DB_NAME = "langchain_db"
 COLLECTION_NAME = "invoice_db"
 VECTOR_INDEX_NAME = "invoice_vector_index"
 
+# Load data index
+with open(os.path.join(os.path.dirname(__file__), '..', 'data', 'index.json')) as f:
+    DATA_INDEX = json.load(f)
+
 def connect_to_mongodb():
     client = MongoClient(MONGODB_URI)
     db = client[DB_NAME]
@@ -135,7 +139,7 @@ def query_rag_pipeline(rag_chain, retriever, question):
 def initialize_rag_pipeline():
     client, db, collection = connect_to_mongodb()
     check_or_create_vector_index(collection)
-    data_file = '/path/to/your/data.json'
+    data_file = os.path.join(os.path.dirname(__file__), '..', DATA_INDEX['invoice_data']['path'])
     documents = load_data_to_mongodb(collection, data_file)
     vector_store = create_vector_store(collection, documents)
     rag_chain, retriever = setup_rag_pipeline(vector_store)
