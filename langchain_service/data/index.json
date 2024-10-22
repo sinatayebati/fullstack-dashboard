@@ -1,0 +1,8 @@
+{
+  "invoice_data": {
+    "file_name": "data.json",
+    "path": "data/data.json",
+    "description": "Invoice dataset for RAG pipeline"
+  }
+}
+
