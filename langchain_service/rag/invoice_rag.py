@@ -30,48 +30,49 @@ def connect_to_mongodb():
     return client, db, collection
 
 def check_or_create_vector_index(collection):
-    existing_indexes = list(collection.list_indexes())
-    existing_search_indexes = [index for index in existing_indexes if index.get('name', '').startswith('vector_')]
-    
-    matching_index = next((index for index in existing_search_indexes if index['name'] == VECTOR_INDEX_NAME), None)
-    
-    if existing_search_indexes:
-        print(f"Existing search indexes found: {[index['name'] for index in existing_search_indexes]}")
+    try:
+        # Get all search indexes
+        existing_indexes = list(collection.list_search_indexes())
+        # print(f"Raw existing indexes: {existing_indexes}")  # Debug print
         
-        if matching_index:
+        # Extract just the names for easier checking
+        existing_index_names = [index.get('name') for index in existing_indexes]
+        print(f"Existing index names: {existing_index_names}")  # Debug print
+        
+        if VECTOR_INDEX_NAME in existing_index_names:
             print(f"Vector index '{VECTOR_INDEX_NAME}' already exists. Skipping creation.")
             return
-        else:
-            print(f"No index matching '{VECTOR_INDEX_NAME}' found. Creating new index.")
-    else:
-        print("No existing search indexes found.")
-    
-    print(f"Creating vector index '{VECTOR_INDEX_NAME}'...")
-    search_index_model = SearchIndexModel(
-        definition={
-            "fields": [
-                {
-                    "type": "vector",
-                    "path": "embedding",
-                    "numDimensions": 1536,
-                    "similarity": "cosine"
-                },
-                {
-                    "type": "filter",
-                    "path": "id",
-                }
-            ]
-        },
-        name=VECTOR_INDEX_NAME,
-        type="vectorSearch"
-    )
-    try:
+            
+        print(f"No index matching '{VECTOR_INDEX_NAME}' found. Creating new index...")
+        
+        search_index_model = SearchIndexModel(
+            definition={
+                "fields": [
+                    {
+                        "type": "vector",
+                        "path": "embedding",
+                        "numDimensions": 1536,
+                        "similarity": "cosine"
+                    },
+                    {
+                        "type": "filter",
+                        "path": "id",
+                    }
+                ]
+            },
+            name=VECTOR_INDEX_NAME,
+            type="vectorSearch"
+        )
+        
         collection.create_search_index(search_index_model)
         print(f"Vector index '{VECTOR_INDEX_NAME}' created successfully.")
+        
     except pymongo.errors.OperationFailure as e:
-        if e.code == 68:  # IndexAlreadyExists error code
-            print(f"Vector index '{VECTOR_INDEX_NAME}' already exists.")
+        if "already exists" in str(e):
+            print(f"NOTE: Despite our checks, MongoDB reports that index '{VECTOR_INDEX_NAME}' already exists.")
+            print(f"Error details: {str(e)}")  # Debug print
         else:
+            print(f"An error occurred: {str(e)}")  # Debug print
             raise
 
 def load_data_to_mongodb(collection, data_file):
