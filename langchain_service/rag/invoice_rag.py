@@ -19,39 +19,60 @@ DB_NAME = "langchain_db"
 COLLECTION_NAME = "invoice_db"
 VECTOR_INDEX_NAME = "invoice_vector_index"
 
+# Load data index
+with open(os.path.join(os.path.dirname(__file__), '..', 'data', 'index.json')) as f:
+    DATA_INDEX = json.load(f)
+
 def connect_to_mongodb():
     client = MongoClient(MONGODB_URI)
     db = client[DB_NAME]
-    collection = db[COLLECTION_NAME]
+    collection = client[DB_NAME][COLLECTION_NAME]
     return client, db, collection
 
 def check_or_create_vector_index(collection):
-    existing_indexes = collection.list_indexes()
-    index_exists = any(index['name'] == VECTOR_INDEX_NAME for index in existing_indexes)
+    existing_indexes = list(collection.list_indexes())
+    existing_search_indexes = [index for index in existing_indexes if index.get('name', '').startswith('vector_')]
     
-    if not index_exists:
-        search_index_model = SearchIndexModel(
-            definition={
-                "fields": [
-                    {
-                        "type": "vector",
-                        "path": "embedding",
-                        "numDimensions": 1536,
-                        "similarity": "cosine"
-                    },
-                    {
-                        "type": "filter",
-                        "path": "id",
-                    }
-                ]
-            },
-            name=VECTOR_INDEX_NAME,
-            type="vectorSearch"
-        )
-        collection.create_search_index(model=search_index_model)
-        print(f"Vector index '{VECTOR_INDEX_NAME}' created.")
+    matching_index = next((index for index in existing_search_indexes if index['name'] == VECTOR_INDEX_NAME), None)
+    
+    if existing_search_indexes:
+        print(f"Existing search indexes found: {[index['name'] for index in existing_search_indexes]}")
+        
+        if matching_index:
+            print(f"Vector index '{VECTOR_INDEX_NAME}' already exists. Skipping creation.")
+            return
+        else:
+            print(f"No index matching '{VECTOR_INDEX_NAME}' found. Creating new index.")
     else:
-        print(f"Vector index '{VECTOR_INDEX_NAME}' already exists.")
+        print("No existing search indexes found.")
+    
+    print(f"Creating vector index '{VECTOR_INDEX_NAME}'...")
+    search_index_model = SearchIndexModel(
+        definition={
+            "fields": [
+                {
+                    "type": "vector",
+                    "path": "embedding",
+                    "numDimensions": 1536,
+                    "similarity": "cosine"
+                },
+                {
+                    "type": "filter",
+                    "path": "id",
+                }
+            ]
+        },
+        name=VECTOR_INDEX_NAME,
+        type="vectorSearch"
+    )
+    try:
+        collection.create_search_index(search_index_model)
+        print(f"Vector index '{VECTOR_INDEX_NAME}' created successfully.")
+    except pymongo.errors.OperationFailure as e:
+        if e.code == 68:  # IndexAlreadyExists error code
+            print(f"Vector index '{VECTOR_INDEX_NAME}' already exists.")
+        else:
+            raise
 
 def load_data_to_mongodb(collection, data_file):
     # Check if data already exists
@@ -85,13 +106,13 @@ def load_data_to_mongodb(collection, data_file):
     
     return documents
 
-def create_vector_store(collection, documents):
-    vector_store = MongoDBAtlasVectorSearch.from_documents(
-        documents=documents,
-        embedding=OpenAIEmbeddings(disallowed_special=()),
+def create_or_load_vector_store(collection):
+    vector_store = MongoDBAtlasVectorSearch(
         collection=collection,
+        embedding=OpenAIEmbeddings(disallowed_special=()),
         index_name=VECTOR_INDEX_NAME
     )
+    print(f"Vector store loaded or created with index '{VECTOR_INDEX_NAME}'.")
     return vector_store
 
 def setup_rag_pipeline(vector_store):
@@ -135,9 +156,9 @@ def query_rag_pipeline(rag_chain, retriever, question):
 def initialize_rag_pipeline():
     client, db, collection = connect_to_mongodb()
     check_or_create_vector_index(collection)
-    data_file = '/path/to/your/data.json'
+    data_file = os.path.join(os.path.dirname(__file__), '..', DATA_INDEX['invoice_data']['path'])
     documents = load_data_to_mongodb(collection, data_file)
-    vector_store = create_vector_store(collection, documents)
+    vector_store = create_or_load_vector_store(collection)
     rag_chain, retriever = setup_rag_pipeline(vector_store)
     return rag_chain, retriever, client
 
