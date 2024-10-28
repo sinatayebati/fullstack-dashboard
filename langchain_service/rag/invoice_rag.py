@@ -1,6 +1,10 @@
 import os
 import json
 import pymongo
+import time
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
 from pymongo import MongoClient
 from pymongo.operations import SearchIndexModel
 from langchain_mongodb import MongoDBAtlasVectorSearch
@@ -14,10 +18,22 @@ from langchain_core.runnables import RunnablePassthrough
 MONGODB_URI = os.getenv("MONGO_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Constants
-DB_NAME = "langchain_db"
-COLLECTION_NAME = "invoice_db"
-VECTOR_INDEX_NAME = "invoice_vector_index"
+@dataclass
+class Config:
+    DB_NAME: str = "langchain_db"
+    COLLECTION_NAME: str = "invoice_db"
+    VECTOR_INDEX_NAME: str = "invoice_vector_index"
+    BATCH_SIZE: int = 100
+    MAX_RETRIES: int = 3
+    REQUEST_TIMEOUT: int = 30
+    MONGODB_TIMEOUT_MS: int = 5000
+    LLM_MODEL: str = "gpt-4o-mini"
+    LLM_TEMPERATURE: float = 0
+    RETRIEVER_K: int = 3
+
+# DB_NAME = "langchain_db"
+# COLLECTION_NAME = "invoice_db"
+# VECTOR_INDEX_NAME = "invoice_vector_index"
 
 def validate_environment():
     required_vars = {
@@ -32,13 +48,12 @@ def validate_environment():
 with open(os.path.join(os.path.dirname(__file__), '..', 'data', 'index.json')) as f:
     DATA_INDEX = json.load(f)
 
-def connect_to_mongodb():
+def connect_to_mongodb(config: Config):
     try:
-        client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
-        # Verify connection
+        client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=config.MONGODB_TIMEOUT_MS)
         client.server_info()
-        db = client[DB_NAME]
-        collection = client[DB_NAME][COLLECTION_NAME]
+        db = client[config.DB_NAME]
+        collection = client[config.DB_NAME][config.COLLECTION_NAME]
         return client, db, collection
     except pymongo.errors.ServerSelectionTimeoutError:
         print("Failed to connect to MongoDB server")
@@ -47,7 +62,7 @@ def connect_to_mongodb():
         print(f"Authentication failed: {str(e)}")
         raise
 
-def check_or_create_vector_index(collection):
+def check_or_create_vector_index(collection, config: Config):
     try:
         # Get all search indexes
         existing_indexes = list(collection.list_search_indexes())
@@ -57,11 +72,11 @@ def check_or_create_vector_index(collection):
         existing_index_names = [index.get('name') for index in existing_indexes]
         print(f"Existing index names: {existing_index_names}")  # Debug print
         
-        if VECTOR_INDEX_NAME in existing_index_names:
-            print(f"Vector index '{VECTOR_INDEX_NAME}' already exists. Skipping creation.")
+        if config.VECTOR_INDEX_NAME in existing_index_names:
+            print(f"Vector index '{config.VECTOR_INDEX_NAME}' already exists. Skipping creation.")
             return
             
-        print(f"No index matching '{VECTOR_INDEX_NAME}' found. Creating new index...")
+        print(f"No index matching '{config.VECTOR_INDEX_NAME}' found. Creating new index...")
         
         search_index_model = SearchIndexModel(
             definition={
@@ -78,22 +93,22 @@ def check_or_create_vector_index(collection):
                     }
                 ]
             },
-            name=VECTOR_INDEX_NAME,
+            name=config.VECTOR_INDEX_NAME,
             type="vectorSearch"
         )
         
         collection.create_search_index(search_index_model)
-        print(f"Vector index '{VECTOR_INDEX_NAME}' created successfully.")
+        print(f"Vector index '{config.VECTOR_INDEX_NAME}' created successfully.")
         
     except pymongo.errors.OperationFailure as e:
         if "already exists" in str(e):
-            print(f"NOTE: Despite our checks, MongoDB reports that index '{VECTOR_INDEX_NAME}' already exists.")
+            print(f"NOTE: Despite our checks, MongoDB reports that index '{config.VECTOR_INDEX_NAME}' already exists.")
             print(f"Error details: {str(e)}")  # Debug print
         else:
             print(f"An error occurred: {str(e)}")  # Debug print
             raise
 
-def load_data_to_mongodb(collection, data_file):
+def load_data_to_mongodb(collection, data_file, config: Config):
     # Check if data already exists
     if collection.count_documents({}) > 0:
         print("Data already exists in the collection. Skipping data loading.")
@@ -102,8 +117,6 @@ def load_data_to_mongodb(collection, data_file):
     if not os.path.exists(data_file):
         raise FileNotFoundError(f"Data file not found: {data_file}")
         
-    # Batch processing for large datasets
-    BATCH_SIZE = 100
     documents = []
     total_documents = 0
     
@@ -129,7 +142,7 @@ def load_data_to_mongodb(collection, data_file):
             )
             documents.append(doc)
             
-            if len(documents) >= BATCH_SIZE:
+            if len(documents) >= config.BATCH_SIZE:
                 collection.insert_many([doc.dict() for doc in documents])
                 total_documents += len(documents)
                 documents = []
@@ -148,19 +161,19 @@ def load_data_to_mongodb(collection, data_file):
         print(f"Error loading data: {str(e)}")
         raise
 
-def create_or_load_vector_store(collection):
+def create_or_load_vector_store(collection, config: Config):
     vector_store = MongoDBAtlasVectorSearch(
         collection=collection,
         embedding=OpenAIEmbeddings(disallowed_special=()),
-        index_name=VECTOR_INDEX_NAME
+        index_name=config.VECTOR_INDEX_NAME
     )
-    print(f"Vector store loaded or created with index '{VECTOR_INDEX_NAME}'.")
+    print(f"Vector store loaded or created with index '{config.VECTOR_INDEX_NAME}'.")
     return vector_store
 
-def setup_rag_pipeline(vector_store):
+def setup_rag_pipeline(vector_store, config: Config):
     retriever = vector_store.as_retriever(
         search_type="similarity",
-        search_kwargs={"k": 3}
+        search_kwargs={"k": config.RETRIEVER_K}
     )
 
     template = """
@@ -182,10 +195,10 @@ def setup_rag_pipeline(vector_store):
     custom_rag_prompt = PromptTemplate.from_template(template)
 
     llm = ChatOpenAI(
-        model="gpt-4o-mini", 
-        temperature=0,
-        request_timeout=30,
-        max_retries=2
+        model=config.LLM_MODEL, 
+        temperature=config.LLM_TEMPERATURE,
+        request_timeout=config.REQUEST_TIMEOUT,
+        max_retries=config.MAX_RETRIES
     )
 
     def format_docs(docs):
@@ -210,14 +223,33 @@ def query_rag_pipeline(rag_chain, retriever, question):
     source_documents = retriever.get_relevant_documents(question)
     return answer, source_documents
 
-def initialize_rag_pipeline():
-    client, db, collection = connect_to_mongodb()
-    check_or_create_vector_index(collection)
+def initialize_rag_pipeline(config: Optional[Config] = None):
+    if config is None:
+        config = Config()
+        
+    client, db, collection = connect_to_mongodb(config)
+    check_or_create_vector_index(collection, config)
     data_file = os.path.join(os.path.dirname(__file__), '..', DATA_INDEX['invoice_data']['path'])
-    total_documents = load_data_to_mongodb(collection, data_file)
-    vector_store = create_or_load_vector_store(collection)
-    rag_chain, retriever = setup_rag_pipeline(vector_store)
+    total_documents = load_data_to_mongodb(collection, data_file, config)
+    vector_store = create_or_load_vector_store(collection, config)
+    rag_chain, retriever = setup_rag_pipeline(vector_store, config)
     return rag_chain, retriever, client
 
-def query_rag(rag_chain, retriever, question):
-    return query_rag_pipeline(rag_chain, retriever, question)
+def query_rag(rag_chain, retriever, question, config: Optional[Config] = None):
+    if config is None:
+        config = Config()
+        
+    for attempt in range(config.MAX_RETRIES):
+        try:
+            answer, source_docs = query_rag_pipeline(rag_chain, retriever, question)
+            return {
+                'answer': answer,
+                'sources': [doc.metadata['id'] for doc in source_docs],
+                'confidence': 'high' if source_docs else 'low',
+                'source_documents': source_docs  # Add this to match the API response
+            }
+        except Exception as e:
+            if attempt == config.MAX_RETRIES - 1:
+                raise
+            print(f"Query attempt {attempt + 1} failed: {str(e)}")
+            time.sleep(1)  # Add delay between retries
