@@ -19,15 +19,33 @@ DB_NAME = "langchain_db"
 COLLECTION_NAME = "invoice_db"
 VECTOR_INDEX_NAME = "invoice_vector_index"
 
+def validate_environment():
+    required_vars = {
+        "MONGO_URL": MONGODB_URI,
+        "OPENAI_API_KEY": OPENAI_API_KEY
+    }
+    missing = [var for var, val in required_vars.items() if not val]
+    if missing:
+        raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+
 # Load data index
 with open(os.path.join(os.path.dirname(__file__), '..', 'data', 'index.json')) as f:
     DATA_INDEX = json.load(f)
 
 def connect_to_mongodb():
-    client = MongoClient(MONGODB_URI)
-    db = client[DB_NAME]
-    collection = client[DB_NAME][COLLECTION_NAME]
-    return client, db, collection
+    try:
+        client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+        # Verify connection
+        client.server_info()
+        db = client[DB_NAME]
+        collection = client[DB_NAME][COLLECTION_NAME]
+        return client, db, collection
+    except pymongo.errors.ServerSelectionTimeoutError:
+        print("Failed to connect to MongoDB server")
+        raise
+    except pymongo.errors.OperationFailure as e:
+        print(f"Authentication failed: {str(e)}")
+        raise
 
 def check_or_create_vector_index(collection):
     try:
@@ -81,31 +99,54 @@ def load_data_to_mongodb(collection, data_file):
         print("Data already exists in the collection. Skipping data loading.")
         return []
 
-    with open(data_file, 'r') as f:
-        data = json.load(f)
-    
-    documents = []
-    for row in data['rows']:
-        parsed_data = json.loads(row['row']['parsed_data'])
-        content = f"Invoice ID: {row['row']['id']}\n"
-        content += f"Parsed Data: {parsed_data['json']}\n"
-        content += f"Raw Data: {row['row']['raw_data']}"
+    if not os.path.exists(data_file):
+        raise FileNotFoundError(f"Data file not found: {data_file}")
         
-        doc = Document(
-            page_content=content,
-            metadata={
-                "id": row['row']['id'],
-                "image_url": row['row']['image']['src']
-            }
-        )
-        documents.append(doc)
+    # Batch processing for large datasets
+    BATCH_SIZE = 100
+    documents = []
+    total_documents = 0
     
-    # Insert documents into MongoDB
-    if documents:
-        collection.insert_many([doc.dict() for doc in documents])
-        print(f"Loaded {len(documents)} documents into MongoDB.")
-    
-    return documents
+    try:
+        with open(data_file, 'r') as f:
+            data = json.load(f)
+        
+        for row in data['rows']:
+            parsed_data = json.loads(row['row']['parsed_data'])
+            content = (
+                f"Invoice ID: {row['row']['id']}\n"
+                f"Parsed Data: {parsed_data['json']}\n"
+                f"Raw Data: {row['row']['raw_data']}"
+            )
+            
+            doc = Document(
+                page_content=content,
+                metadata={
+                    "id": row['row']['id'],
+                    "image_url": row['row']['image']['src'],
+                    "timestamp": datetime.datetime.utcnow()
+                }
+            )
+            documents.append(doc)
+            
+            if len(documents) >= BATCH_SIZE:
+                collection.insert_many([doc.dict() for doc in documents])
+                total_documents += len(documents)
+                documents = []
+                
+        if documents:  # Insert remaining documents
+            collection.insert_many([doc.dict() for doc in documents])
+            total_documents += len(documents)
+            
+        print(f"Loaded {total_documents} documents into MongoDB.")
+        return total_documents
+        
+    except json.JSONDecodeError:
+        print("Error parsing JSON data")
+        raise
+    except Exception as e:
+        print(f"Error loading data: {str(e)}")
+        raise
 
 def create_or_load_vector_store(collection):
     vector_store = MongoDBAtlasVectorSearch(
@@ -158,7 +199,7 @@ def initialize_rag_pipeline():
     client, db, collection = connect_to_mongodb()
     check_or_create_vector_index(collection)
     data_file = os.path.join(os.path.dirname(__file__), '..', DATA_INDEX['invoice_data']['path'])
-    documents = load_data_to_mongodb(collection, data_file)
+    total_documents = load_data_to_mongodb(collection, data_file)
     vector_store = create_or_load_vector_store(collection)
     rag_chain, retriever = setup_rag_pipeline(vector_store)
     return rag_chain, retriever, client
