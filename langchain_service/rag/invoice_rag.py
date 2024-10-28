@@ -164,14 +164,29 @@ def setup_rag_pipeline(vector_store):
     )
 
     template = """
-    Use the following pieces of context to answer the question at the end.
-    If you don't know the answer, just say that you don't know. Don't try to make up an answer.
+    You are an AI assistant analyzing invoice data. Use the following context to answer the question.
+    If the answer cannot be determined from the context, say "I cannot answer this based on the available information."
+    
+    Context:
     {context}
+    
     Question: {question}
+    
+    Remember to:
+    - Only use information from the provided context
+    - Be specific and cite invoice IDs when relevant
+    - Indicate if any information is unclear or missing
+    
+    Answer:
     """
     custom_rag_prompt = PromptTemplate.from_template(template)
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    llm = ChatOpenAI(
+        model="gpt-4o-mini", 
+        temperature=0,
+        request_timeout=30,
+        max_retries=2
+    )
 
     def format_docs(docs):
         formatted_docs = []
