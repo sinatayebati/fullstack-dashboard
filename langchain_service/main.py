@@ -1,11 +1,23 @@
 from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
+from pydantic import BaseModel
 import asyncio
 import logging
 from datetime import datetime
-from rag.invoice_rag import initialize_rag_pipeline, query_rag
+from rag.invoice_rag import Config, initialize_rag_pipeline, query_rag
+
+class QuestionRequest(BaseModel):
+    question: str
+
+class QueryResponse(BaseModel):  # You can add this to make the response structure explicit
+    question: str
+    answer: str
+    sources: list[str]
+    confidence: str
+    source_documents: list[str]
 
 load_dotenv()
+config = Config()
 
 app = FastAPI()
 
@@ -26,17 +38,20 @@ async def root():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
-@app.post("/query")
-async def query_invoice(question: str):
-    global rag_chain, retriever
+    
+@app.post("/query", response_model=QueryResponse)
+async def query_invoice(request: QuestionRequest):
+    global rag_chain, retriever, config
     if rag_chain is None or retriever is None:
         raise HTTPException(status_code=503, detail="RAG pipeline not initialized")
     try:
-        answer, source_documents = query_rag(rag_chain, retriever, question)
+        result = query_rag(rag_chain, retriever, request.question, config)
         return {
-            "question": question,
-            "answer": answer,
-            "source_documents": [doc.page_content for doc in source_documents]
+            "question": request.question,
+            "answer": result['answer'],
+            "sources": result['sources'],
+            "confidence": result['confidence'],
+            "source_documents": [doc.page_content for doc in result['source_documents']]
         }
     except Exception as e:
         logger.error(f"Error querying RAG pipeline: {str(e)}")
@@ -50,7 +65,7 @@ async def periodic_health_check():
 @app.on_event("startup")
 async def startup_event():
     global rag_chain, retriever, mongo_client
-    rag_chain, retriever, mongo_client = initialize_rag_pipeline()
+    rag_chain, retriever, mongo_client = initialize_rag_pipeline(config)
     asyncio.create_task(periodic_health_check())
 
 @app.on_event("shutdown")

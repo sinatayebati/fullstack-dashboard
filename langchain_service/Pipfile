@@ -21,6 +21,13 @@ pandas = "*"
 pillow = "*"
 
 [dev-packages]
+pytest = "*"
+pytest-asyncio = "*"
+pytest-cov = "*"
+httpx = "*"
+pytest-watch = "*"  # Optional: for auto-running tests
+mypy = "*"  # Optional: for type checking
+flake8 = "*"  # Optional: for code style checking
 
 [requires]
 python_version = "3.9"
