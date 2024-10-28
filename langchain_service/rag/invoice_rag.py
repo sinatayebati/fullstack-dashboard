@@ -29,7 +29,7 @@ class Config:
     MONGODB_TIMEOUT_MS: int = 5000
     LLM_MODEL: str = "gpt-4o-mini"
     LLM_TEMPERATURE: float = 0
-    RETRIEVER_K: int = 3
+    RETRIEVER_K: int = 5
 
 def validate_environment():
     required_vars = {
