@@ -1,9 +1,20 @@
 from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
+from pydantic import BaseModel
 import asyncio
 import logging
 from datetime import datetime
 from rag.invoice_rag import Config, initialize_rag_pipeline, query_rag
+
+class QuestionRequest(BaseModel):
+    question: str
+
+class QueryResponse(BaseModel):  # You can add this to make the response structure explicit
+    question: str
+    answer: str
+    sources: list[str]
+    confidence: str
+    source_documents: list[str]
 
 load_dotenv()
 config = Config()
@@ -27,15 +38,16 @@ async def root():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
-@app.post("/query")
-async def query_invoice(question: str):
+    
+@app.post("/query", response_model=QueryResponse)
+async def query_invoice(request: QuestionRequest):
     global rag_chain, retriever, config
     if rag_chain is None or retriever is None:
         raise HTTPException(status_code=503, detail="RAG pipeline not initialized")
     try:
-        result = query_rag(rag_chain, retriever, question, config)
+        result = query_rag(rag_chain, retriever, request.question, config)
         return {
-            "question": question,
+            "question": request.question,
             "answer": result['answer'],
             "sources": result['sources'],
             "confidence": result['confidence'],
