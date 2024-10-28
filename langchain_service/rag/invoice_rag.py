@@ -31,10 +31,6 @@ class Config:
     LLM_TEMPERATURE: float = 0
     RETRIEVER_K: int = 3
 
-# DB_NAME = "langchain_db"
-# COLLECTION_NAME = "invoice_db"
-# VECTOR_INDEX_NAME = "invoice_vector_index"
-
 def validate_environment():
     required_vars = {
         "MONGO_URL": MONGODB_URI,
