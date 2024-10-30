@@ -79,9 +79,9 @@ class RAGTester:
             time.sleep(1)  # Small delay between queries
 
 if __name__ == "__main__":
-    # Test questions
     test_questions = [
         "what is the invoice number for the seller that has the following description: 'Patel, Thompson and Montgomery 356 Kyle Vista New James, MA 46228'",
+        "who is the seller of invoice no: 40378170",
     ]
     
     # Create tester and run tests
