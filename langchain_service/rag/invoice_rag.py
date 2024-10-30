@@ -4,7 +4,8 @@ import pymongo
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Any
+from pydantic import Field, BaseModel
 from pymongo import MongoClient
 from pymongo.operations import SearchIndexModel
 from langchain_mongodb import MongoDBAtlasVectorSearch
@@ -13,6 +14,9 @@ from langchain.prompts import PromptTemplate
 from langchain.schema import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from langchain_core.documents import Document
 
 # Load environment variables (you'll need to set these)
 MONGODB_URI = os.getenv("MONGO_URL")
@@ -21,7 +25,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 @dataclass
 class Config:
     DB_NAME: str = "langchain_db"
-    COLLECTION_NAME: str = "invoice_db"
+    COLLECTION_VECTOR: str = "invoice_db"
+    COLLECTION_IMAGE: str = "image_bytes"
     VECTOR_INDEX_NAME: str = "invoice_vector_index"
     BATCH_SIZE: int = 100
     MAX_RETRIES: int = 3
@@ -29,7 +34,7 @@ class Config:
     MONGODB_TIMEOUT_MS: int = 5000
     LLM_MODEL: str = "gpt-4o-mini"
     LLM_TEMPERATURE: float = 0
-    RETRIEVER_K: int = 5
+    RETRIEVER_K: int = 3
 
 def validate_environment():
     required_vars = {
@@ -49,7 +54,7 @@ def connect_to_mongodb(config: Config):
         client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=config.MONGODB_TIMEOUT_MS)
         client.server_info()
         db = client[config.DB_NAME]
-        collection = client[config.DB_NAME][config.COLLECTION_NAME]
+        collection = client[config.DB_NAME][config.COLLECTION_VECTOR]
         return client, db, collection
     except pymongo.errors.ServerSelectionTimeoutError:
         print("Failed to connect to MongoDB server")
@@ -123,17 +128,16 @@ def load_data_to_mongodb(collection, data_file, config: Config):
         for row in data['rows']:
             parsed_data = json.loads(row['row']['parsed_data'])
             content = (
-                f"Invoice ID: {row['row']['id']}\n"
-                f"Parsed Data: {parsed_data['json']}\n"
-                f"Raw Data: {row['row']['raw_data']}"
+                f"invoice_id: {row['row']['id']}\n"
+                f"parsed_data: {parsed_data['json']}\n"
             )
             
             doc = Document(
                 page_content=content,
                 metadata={
                     "id": row['row']['id'],
-                    "image_url": row['row']['image']['src'],
-                    "timestamp": datetime.datetime.utcnow()
+                    "image_height": row['row']['image']['height'],
+                    "image_width": row['row']['image']['width'],
                 }
             )
             documents.append(doc)
@@ -157,6 +161,64 @@ def load_data_to_mongodb(collection, data_file, config: Config):
         print(f"Error loading data: {str(e)}")
         raise
 
+
+def load_image_bytes_to_mongodb(db, data_file, config: Config):
+    """
+    Load image bytes data to a separate MongoDB collection.
+    """
+    image_collection = db[config.COLLECTION_IMAGE]
+
+    # Check if data already exists
+    if image_collection.count_documents({}) > 0:
+        print("Image bytes data already exists in the collection. Skipping data loading.")
+        return []
+
+    if not os.path.exists(data_file):
+        raise FileNotFoundError(f"Data file not found: {data_file}")
+    
+    image_documents = []
+    total_documents = 0
+    
+    try:
+        with open(data_file, 'r') as f:
+            data = json.load(f)
+        
+        # Create index for invoice_id if it doesn't exist
+        image_collection.create_index("invoice_id", unique=True)
+        
+        for row in data['rows']:
+            image_doc = {
+                "invoice_id": row['row']['id'],
+                "image_bytes": row['row']['image']['bytes']
+            }
+            image_documents.append(image_doc)
+            
+            if len(image_documents) >= config.BATCH_SIZE:
+                try:
+                    image_collection.insert_many(image_documents, ordered=False)
+                except pymongo.errors.BulkWriteError as e:
+                    print(f"Some documents were not inserted: {str(e)}")
+                total_documents += len(image_documents)
+                image_documents = []
+                
+        if image_documents:  # Insert remaining documents
+            try:
+                image_collection.insert_many(image_documents, ordered=False)
+                total_documents += len(image_documents)
+            except pymongo.errors.BulkWriteError as e:
+                print(f"Some documents were not inserted: {str(e)}")
+            
+        print(f"Loaded {total_documents} image documents into MongoDB.")
+        return total_documents
+        
+    except json.JSONDecodeError:
+        print("Error parsing JSON data")
+        raise
+    except Exception as e:
+        print(f"Error loading image data: {str(e)}")
+        raise
+
+
 def create_or_load_vector_store(collection, config: Config):
     vector_store = MongoDBAtlasVectorSearch(
         collection=collection,
@@ -165,6 +227,7 @@ def create_or_load_vector_store(collection, config: Config):
     )
     print(f"Vector store loaded or created with index '{config.VECTOR_INDEX_NAME}'.")
     return vector_store
+
 
 def setup_rag_pipeline(vector_store, config: Config):
     retriever = vector_store.as_retriever(
@@ -214,6 +277,7 @@ def setup_rag_pipeline(vector_store, config: Config):
 
     return rag_chain, retriever
 
+
 def query_rag_pipeline(rag_chain, retriever, question):
     answer = rag_chain.invoke(question)
     source_documents = retriever.get_relevant_documents(question)
@@ -227,6 +291,7 @@ def initialize_rag_pipeline(config: Optional[Config] = None):
     check_or_create_vector_index(collection, config)
     data_file = os.path.join(os.path.dirname(__file__), '..', DATA_INDEX['invoice_data']['path'])
     total_documents = load_data_to_mongodb(collection, data_file, config)
+    total_image_documents = load_image_bytes_to_mongodb(db, data_file, config)
     vector_store = create_or_load_vector_store(collection, config)
     rag_chain, retriever = setup_rag_pipeline(vector_store, config)
     return rag_chain, retriever, client
