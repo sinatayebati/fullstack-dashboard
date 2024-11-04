@@ -79,10 +79,21 @@ class RAGTester:
             time.sleep(1)  # Small delay between queries
 
 if __name__ == "__main__":
-    test_questions = [
-        "what is the invoice number for the seller that has the following description: 'Patel, Thompson and Montgomery 356 Kyle Vista New James, MA 46228'",
-        "who is the seller of invoice no: 40378170",
-    ]
+    # test_questions = [
+    #     "what is the invoice number for the seller that has the following description: 'Patel, Thompson and Montgomery 356 Kyle Vista New James, MA 46228'",
+    #     "who is the seller of invoice no: 40378170",
+    # ]
+    # test_questions = [
+    #     "who is the seller of invoice_no: 61356291?",
+    # ]
+    # test_questions = {
+    # "query": "who is the seller of invoice_no: 61356291?",
+    # "filter": {"invoice_no": "61356291"} 
+    # }
+    test_questions = {
+    "query" : "find the information for seller with invoice_no: 81163184?",
+    "filter": {"invoice_no": "81163184"} 
+    }
     
     # Create tester and run tests
     tester = RAGTester()
