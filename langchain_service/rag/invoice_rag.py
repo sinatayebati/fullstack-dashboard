@@ -72,7 +72,6 @@ def connect_to_mongodb(config: Config):
 def check_or_create_vector_index(collection, config: Config):
     """Enhanced index creation with better error handling"""
     try:
-        # Ensure collection is not empty before creating index
         if collection.count_documents({}) == 0:
             print("Collection is empty. Load data before creating index.")
             return
@@ -204,6 +203,7 @@ def parse_invoice_data(row: Dict[str, Any]) -> InvoiceDocument:
         print(f"Input row structure: {json.dumps(row, indent=2)}")
         raise
 
+
 def load_data_to_mongodb(collection, data_file, config: Config) -> List[Document]:
     """Modified to handle document processing without directly inserting"""
     try:
@@ -323,7 +323,7 @@ def create_or_load_vector_store(collection, documents: List[Document], config: C
                 embedding=embeddings,
                 index_name=config.VECTOR_INDEX_NAME,
                 embedding_key="embedding",
-                text_key="page_content",  # Changed from "text" to "page_content"
+                text_key="text",
                 metadata_key="metadata"
             )
             return vector_store
@@ -350,7 +350,8 @@ def setup_rag_pipeline(vector_store, config: Config):
         search_type="similarity",
         search_kwargs={
             "k": config.RETRIEVER_K,
-            "score_threshold": 0.8,  # Add similarity score threshold
+            "score_threshold": 0.7,
+            "pre_filter": {}
         }
     )
 
@@ -445,7 +446,6 @@ def initialize_rag_pipeline(config: Optional[Config] = None):
 
 
 def query_rag(rag_chain, retriever, question, config: Optional[Config] = None):
-    """Enhanced query handling with filter support"""
     if config is None:
         config = Config()
     
@@ -457,12 +457,11 @@ def query_rag(rag_chain, retriever, question, config: Optional[Config] = None):
             # Process filter dict to match MongoDB format
             processed_filter = {}
             for key, value in filter_dict.items():
-                # Remove 'metadata.' prefix if present
                 clean_key = key.replace('metadata.', '')
                 processed_filter[clean_key] = value
             
             # Update retriever search kwargs with filter
-            retriever.search_kwargs.update({'filter': processed_filter})
+            retriever.search_kwargs.update({'pre_filter': processed_filter})
             return base_query
         return query_input
     
@@ -474,7 +473,7 @@ def query_rag(rag_chain, retriever, question, config: Optional[Config] = None):
             # Reset search kwargs to default
             retriever.search_kwargs = {
                 "k": config.RETRIEVER_K,
-                "score_threshold": 0.8
+                "score_threshold": 0.7
             }
             
             return {
