@@ -1,11 +1,14 @@
 import time
 import pymongo
+import numpy as np
 from typing import List
+from bson.binary import Binary, BinaryVectorDtype
 from pymongo.operations import SearchIndexModel
 from langchain_mongodb import MongoDBAtlasVectorSearch
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
 from config.config import Config
+from .ingest import generate_bson_vector
     
 
 def check_or_create_vector_index(collection, config: Config):
@@ -31,9 +34,15 @@ def check_or_create_vector_index(collection, config: Config):
                 "fields": [
                     {
                         "type": "vector",
-                        "path": "embedding",
+                        "path": "embedding_float",
                         "numDimensions": 1536,
                         "similarity": "euclidean"
+                    },
+                    {
+                        "type": "vector",
+                        "path": "embedding_int8",
+                        "numDimensions": 1536,
+                        "similarity": "cosine"
                     },
                     {
                         "type": "filter",
@@ -83,3 +92,51 @@ def check_or_create_vector_index(collection, config: Config):
         else:
             print(f"Error creating index: {str(e)}")
             raise
+
+
+
+async def vector_search(collection, query_text: str, config: Config, use_int8: bool = False):
+    """Perform vector search using BSON vectors"""
+    try:
+        embeddings_model = OpenAIEmbeddings(
+            model="text-embedding-3-small",
+            dimensions=1536
+        )
+        
+        # Generate query embedding
+        query_embedding = embeddings_model.embed_query(query_text)
+        query_embedding_np = np.array(query_embedding, dtype=np.int8 if use_int8 else np.float32)
+        
+        # Convert to BSON
+        bson_query_vector = generate_bson_vector(
+            query_embedding_np,
+            BinaryVectorDtype.INT8 if use_int8 else BinaryVectorDtype.FLOAT32
+        )
+        
+        # Create search pipeline
+        pipeline = [
+            {
+                '$vectorSearch': {
+                    'index': config.VECTOR_INDEX_NAME,
+                    'path': 'embedding_int8' if use_int8 else 'embedding_float',
+                    'queryVector': bson_query_vector,
+                    'numCandidates': 100,
+                    'limit': 5
+                }
+            },
+            {
+                '$project': {
+                    '_id': 0,
+                    'page_content': 1,
+                    'metadata': 1,
+                    'score': { '$meta': 'vectorSearchScore' }
+                }
+            }
+        ]
+        
+        results = list(collection.aggregate(pipeline))
+        return results
+        
+    except Exception as e:
+        print(f"Error in vector search: {str(e)}")
+        raise
