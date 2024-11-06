@@ -86,14 +86,14 @@ if __name__ == "__main__":
     # test_questions = [
     #     "who is the seller of invoice_no: 61356291?",
     # ]
-    # test_questions = {
-    # "query": "who is the seller of invoice_no: 61356291?",
-    # "filter": {"invoice_no": "61356291"} 
-    # }
     test_questions = {
-    "query" : "find the information for seller with invoice_no: 81163184?",
-    "filter": {"invoice_no": "81163184"} 
+    "query": "who is the seller of invoice_no: 61356291?",
+    "filter": {"invoice_no": "61356291"} 
     }
+    # test_questions = {
+    #     "query": "what is the information of the seller: Harrison-Melton 3468 Kevin Court",
+    #     "filter": {"invoice_no": "81163184"} 
+    # }
     
     # Create tester and run tests
     tester = RAGTester()
