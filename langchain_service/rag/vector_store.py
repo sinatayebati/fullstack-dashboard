@@ -1,11 +1,12 @@
+import time
 import pymongo
 from typing import List
 from pymongo.operations import SearchIndexModel
 from langchain_mongodb import MongoDBAtlasVectorSearch
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
-
 from config.config import Config
+    
 
 def check_or_create_vector_index(collection, config: Config):
     """Enhanced index creation with better error handling"""
@@ -32,7 +33,7 @@ def check_or_create_vector_index(collection, config: Config):
                         "type": "vector",
                         "path": "embedding",
                         "numDimensions": 1536,
-                        "similarity": "cosine"
+                        "similarity": "euclidean"
                     },
                     {
                         "type": "filter",
@@ -41,6 +42,10 @@ def check_or_create_vector_index(collection, config: Config):
                     {
                         "type": "filter",
                         "path": "metadata.invoice_no",
+                    },
+                    {
+                        "type": "filter",
+                        "path": "metadata.date",
                     },
                     {
                         "type": "filter",
@@ -56,8 +61,21 @@ def check_or_create_vector_index(collection, config: Config):
             type="vectorSearch"
         )
         
-        collection.create_search_index(search_index_model)
-        print(f"Vector index '{config.VECTOR_INDEX_NAME}' created successfully.")
+        result = collection.create_search_index(search_index_model)
+        print("New search index named " + result + " is building.")
+
+        # Wait for initial sync to complete
+        print("Polling to check if the index is ready. This may take up to a minute.")
+        predicate=None
+        if predicate is None:
+            predicate = lambda index: index.get("queryable") is True
+
+        while True:
+            indices = list(collection.list_search_indexes(config.VECTOR_INDEX_NAME))
+            if len(indices) and predicate(indices[0]):
+                break
+            time.sleep(5)
+        print(result + " is ready for querying.")
         
     except pymongo.errors.OperationFailure as e:
         if "already exists" in str(e):
@@ -65,44 +83,3 @@ def check_or_create_vector_index(collection, config: Config):
         else:
             print(f"Error creating index: {str(e)}")
             raise
-
-
-
-def create_or_load_vector_store(collection, documents: List[Document], config: Config):
-    """Modified vector store creation with proper text key handling"""
-    try:
-        embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-small",
-            dimensions=1536,
-            chunk_size=8000
-        )
-        
-        # Check if collection exists and has documents
-        doc_count = collection.count_documents({})
-        
-        if doc_count > 0:
-            print(f"Found existing collection with {doc_count} documents. Loading vector store...")
-            vector_store = MongoDBAtlasVectorSearch(
-                collection=collection,
-                embedding=embeddings,
-                index_name=config.VECTOR_INDEX_NAME,
-                embedding_key="embedding",
-                text_key="text",
-                metadata_key="metadata"
-            )
-            return vector_store
-            
-        else:
-            print("Creating new vector store from documents...")
-            vector_store = MongoDBAtlasVectorSearch.from_documents(
-                documents=documents,
-                embedding=embeddings,
-                collection=collection,
-                index_name=config.VECTOR_INDEX_NAME
-            )
-            print(f"Vector store created with index '{config.VECTOR_INDEX_NAME}' and {len(documents)} documents.")
-            return vector_store
-        
-    except Exception as e:
-        print(f"Error in vector store operation: {str(e)}")
-        raise
