@@ -1,7 +1,10 @@
+import os
 import json
 import pymongo
+import numpy as np
 from dataclasses import dataclass
 from typing import Dict, Any, List
+from bson.binary import Binary, BinaryVectorDtype
 from langchain_core.documents import Document
 from langchain_mongodb import MongoDBAtlasVectorSearch
 from langchain_openai import OpenAIEmbeddings
@@ -187,11 +190,46 @@ def load_image_bytes_to_mongodb(db, data_file, config: Config):
         raise
 
 
+def generate_bson_vector(vector, vector_dtype):
+    """Convert numpy array to BSON vector format"""
+    return Binary.from_vector(vector, vector_dtype)
+
+
+def create_embeddings_for_documents(documents: List[Document], embeddings_model: OpenAIEmbeddings):
+    """Generate embeddings for documents and convert to BSON format"""
+    texts = [doc.page_content for doc in documents]
+    raw_embeddings = embeddings_model.embed_documents(texts)
+    
+    # Debug: Print first embedding before conversion
+    print("Raw embedding (first 5 values):", raw_embeddings[0][:5])
+    
+    # Convert to numpy arrays
+    float32_arrays = [np.array(emb, dtype=np.float32) for emb in raw_embeddings]
+    int8_arrays = [np.array(emb, dtype=np.int8) for emb in raw_embeddings]
+    
+    # Debug: Print arrays before BSON conversion
+    print("Float32 array (first 5 values):", float32_arrays[0][:5])
+    print("Int8 array (first 5 values):", int8_arrays[0][:5])
+    
+    # Convert to BSON format
+    bson_float32_embeddings = [
+        generate_bson_vector(f32_arr, BinaryVectorDtype.FLOAT32)
+        for f32_arr in float32_arrays
+    ]
+    
+    bson_int8_embeddings = [
+        generate_bson_vector(int8_arr, BinaryVectorDtype.INT8)
+        for int8_arr in int8_arrays
+    ]
+    
+    return bson_float32_embeddings, bson_int8_embeddings
+
 
 def create_or_load_vector_store(collection, documents: List[Document], config: Config):
-    """Modified vector store creation with proper text key handling"""
+    """Modified to use BSON vector approach and return vector store interface"""
     try:
-        embeddings = OpenAIEmbeddings(
+        # Initialize embeddings model
+        embeddings_model = OpenAIEmbeddings(
             model="text-embedding-3-small",
             dimensions=1536,
             chunk_size=8000
@@ -204,24 +242,50 @@ def create_or_load_vector_store(collection, documents: List[Document], config: C
             print(f"Found existing collection with {doc_count} documents. Loading vector store...")
             vector_store = MongoDBAtlasVectorSearch(
                 collection=collection,
-                embedding=embeddings,
+                embedding=embeddings_model,
                 index_name=config.VECTOR_INDEX_NAME,
-                embedding_key="embedding",
+                embedding_key="embedding_float",  # Using float32 as primary embedding
                 text_key="page_content",
                 metadata_key="metadata"
             )
             return vector_store
             
-        else:
-            print("Creating new vector store from documents...")
-            vector_store = MongoDBAtlasVectorSearch.from_documents(
-                documents=documents,
-                embedding=embeddings,
-                collection=collection,
-                index_name=config.VECTOR_INDEX_NAME
-            )
-            print(f"Vector store created with index '{config.VECTOR_INDEX_NAME}' and {len(documents)} documents.")
-            return vector_store
+        print("Creating new vector store from documents...")
+        
+        # Generate BSON embeddings
+        bson_float32_embeddings, bson_int8_embeddings = create_embeddings_for_documents(
+            documents, embeddings_model
+        )
+        
+        # Create documents with embeddings
+        docs_to_insert = []
+        for i, (doc, f32_emb, int8_emb) in enumerate(zip(
+            documents, bson_float32_embeddings, bson_int8_embeddings
+        )):
+            mongo_doc = {
+                "page_content": doc.page_content,
+                "metadata": doc.metadata,
+                "embedding_float": f32_emb,
+                "embedding_int8": int8_emb
+            }
+            docs_to_insert.append(mongo_doc)
+        
+        # Insert documents
+        collection.insert_many(docs_to_insert)
+        print(f"Inserted {len(docs_to_insert)} documents into MongoDB.")
+        
+        # Create and return vector store interface
+        vector_store = MongoDBAtlasVectorSearch(
+            collection=collection,
+            embedding=embeddings_model,
+            index_name=config.VECTOR_INDEX_NAME,
+            embedding_key="embedding_float",  # Using float32 as primary embedding
+            text_key="page_content",
+            metadata_key="metadata"
+        )
+        
+        print(f"Vector store interface created for {len(documents)} documents.")
+        return vector_store
         
     except Exception as e:
         print(f"Error in vector store operation: {str(e)}")
