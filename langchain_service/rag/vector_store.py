@@ -95,8 +95,16 @@ def check_or_create_vector_index(collection, config: Config):
 
 
 
-async def vector_search(collection, query_text: str, config: Config, use_int8: bool = False):
-    """Perform vector search using BSON vectors"""
+async def vector_search(
+    collection, 
+    query_text: str, 
+    config: Config, 
+    use_int8: bool = False,
+    filters: dict = None
+):
+    """
+    Perform vector search using BSON vectors with optional filters
+    """
     try:
         embeddings_model = OpenAIEmbeddings(
             model="text-embedding-3-small",
@@ -114,15 +122,32 @@ async def vector_search(collection, query_text: str, config: Config, use_int8: b
         )
         
         # Create search pipeline
+        vector_search_stage = {
+            'index': config.VECTOR_INDEX_NAME,
+            'path': 'embedding_int8' if use_int8 else 'embedding_float',
+            'queryVector': bson_query_vector,
+            'numCandidates': 100,
+            'limit': 5
+        }
+        
+        # Add filters if provided
+        if filters:
+            # Convert filters to MongoDB format
+            filter_conditions = []
+            for key, value in filters.items():
+                if value:
+                    filter_conditions.append({
+                        f"metadata.{key}": value
+                    })
+            
+            if filter_conditions:
+                vector_search_stage['filter'] = {
+                    '$and': filter_conditions
+                }
+        
         pipeline = [
             {
-                '$vectorSearch': {
-                    'index': config.VECTOR_INDEX_NAME,
-                    'path': 'embedding_int8' if use_int8 else 'embedding_float',
-                    'queryVector': bson_query_vector,
-                    'numCandidates': 100,
-                    'limit': 5
-                }
+                '$vectorSearch': vector_search_stage
             },
             {
                 '$project': {
