@@ -13,22 +13,39 @@ async def test_vector_search():
     db = client[config.DB_NAME]
     collection = db[config.COLLECTION_VECTOR]
     
-    # Test queries
-    test_queries = [
-        "Invoice Number: 39280409 | Date: 07/06/2014 | Seller: Davis PLC 72057 Castillo Via Deniseshire, KY 95233",
+    # Test queries with filters
+    test_cases = [
+        {
+            "query": "Seller: Davis PLC 72057 Castillo Via Deniseshire, KY 95233",
+            "filters": {
+                "invoice_no": "39280409",
+                "date": "07/06/2014",
+            }
+        },
+        {
+            "query": "Items: Description: BUYPOWER Gaming Computer AMD Ryzen 3 3100",
+            "filters": {
+            }
+        },
     ]
     
     print("\nRunning Vector Search Tests...")
     print("=" * 80)
     
-    for i, query in enumerate(test_queries, 1):
+    for i, test_case in enumerate(test_cases, 1):
         print(f"\nTest Query #{i}")
         print("-" * 60)
-        print(f"Query: {query}")
+        print(f"Query: {test_case['query']}")
+        print(f"Filters: {test_case['filters']}")
         
         try:
-            # Perform vector search
-            results = await vector_search(collection, query, config)
+            # Perform vector search with filters
+            results = await vector_search(
+                collection=collection,
+                query_text=test_case['query'],
+                config=config,
+                filters=test_case['filters']
+            )
             
             # Process and display results
             print("\nResults:")
@@ -49,4 +66,4 @@ async def test_vector_search():
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(test_vector_search()) 
+    asyncio.run(test_vector_search())
