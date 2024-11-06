@@ -2,8 +2,9 @@ import os
 from typing import Optional
 
 from config.config import Config, DATA_INDEX
-from mongodb.mongodb_client import connect_to_mongodb, load_data_to_mongodb, load_image_bytes_to_mongodb
-from .vector_store import check_or_create_vector_index, create_or_load_vector_store
+from mongodb.mongodb_client import connect_to_mongodb
+from .ingest import load_data_to_mongodb, load_image_bytes_to_mongodb, create_or_load_vector_store
+from .vector_store import check_or_create_vector_index
 from .rag_chain import setup_rag_pipeline
 
 def initialize_rag_pipeline(config: Optional[Config] = None):
