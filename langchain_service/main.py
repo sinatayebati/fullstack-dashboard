@@ -4,7 +4,9 @@ from pydantic import BaseModel
 import asyncio
 import logging
 from datetime import datetime
-from rag.invoice_rag import Config, initialize_rag_pipeline, query_rag
+from config.config import Config
+from rag.initializer import initialize_rag_pipeline
+from rag.rag_chain import query_rag
 
 class QuestionRequest(BaseModel):
     question: str
