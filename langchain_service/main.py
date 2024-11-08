@@ -7,16 +7,8 @@ from datetime import datetime
 from config.config import Config
 from rag.initializer import initialize_rag_pipeline
 from rag.rag_chain import query_rag
+from rag.vector_store import vector_search
 
-class QuestionRequest(BaseModel):
-    question: str
-
-class QueryResponse(BaseModel):  # You can add this to make the response structure explicit
-    question: str
-    answer: str
-    sources: list[str]
-    confidence: str
-    source_documents: list[str]
 
 load_dotenv()
 config = Config()
@@ -31,6 +23,26 @@ logger = logging.getLogger(__name__)
 rag_chain = None
 retriever = None
 mongo_client = None
+
+
+class QuestionRequest(BaseModel):
+    question: str
+
+class QueryResponse(BaseModel):
+    question: str
+    answer: str
+    sources: list[str]
+    confidence: str
+    source_documents: list[str]
+
+class VectorSearchRequest(BaseModel):
+    query: str
+    filters: dict | None = None
+    use_int8: bool = False
+
+class VectorSearchResponse(BaseModel):
+    results: list
+
 
 @app.get("/")
 async def root():
@@ -63,6 +75,33 @@ async def periodic_health_check():
     while True:
         logger.info(f"Health Check: Service is healthy at {datetime.now().isoformat()}")
         await asyncio.sleep(300)  # Sleep for 300 seconds (5 minutes)
+
+
+@app.post("/vector-search")
+async def vector_search_endpoint(request: VectorSearchRequest):
+    global mongo_client, config
+    if mongo_client is None:
+        raise HTTPException(status_code=503, detail="MongoDB client not initialized")
+    try:
+        # Get the vector collection
+        db = mongo_client[config.DB_NAME]
+        collection = db[config.COLLECTION_VECTOR]
+        
+        # Perform vector search
+        results = await vector_search(
+            collection=collection,
+            query_text=request.query,
+            config=config,
+            use_int8=request.use_int8,
+            filters=request.filters
+        )
+        
+        return {"results": results}
+        
+    except Exception as e:
+        logger.error(f"Error in vector search: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.on_event("startup")
 async def startup_event():
