@@ -38,7 +38,6 @@ class QueryResponse(BaseModel):
 class VectorSearchRequest(BaseModel):
     query: str
     filters: dict | None = None
-    use_int8: bool = False
 
 class VectorSearchResponse(BaseModel):
     results: list
@@ -92,7 +91,6 @@ async def vector_search_endpoint(request: VectorSearchRequest):
             collection=collection,
             query_text=request.query,
             config=config,
-            use_int8=request.use_int8,
             filters=request.filters
         )
         
