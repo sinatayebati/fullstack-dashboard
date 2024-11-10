@@ -63,6 +63,18 @@ def check_or_create_vector_index(collection, config: Config):
                     {
                         "type": "filter",
                         "path": "metadata.client",
+                    },
+                    {
+                        "type": "filter",
+                        "path": "metadata.seller_tax_id",
+                    },
+                    {
+                        "type": "filter",
+                        "path": "metadata.client_tax_id",
+                    },
+                    {
+                        "type": "filter",
+                        "path": "metadata.iban",
                     }
                 ]
             },
@@ -99,7 +111,6 @@ async def vector_search(
     collection, 
     query_text: str, 
     config: Config, 
-    use_int8: bool = False,
     filters: dict = None
 ):
     """
@@ -113,18 +124,18 @@ async def vector_search(
         
         # Generate query embedding
         query_embedding = embeddings_model.embed_query(query_text)
-        query_embedding_np = np.array(query_embedding, dtype=np.int8 if use_int8 else np.float32)
+        query_embedding_np = np.array(query_embedding, dtype=np.float32)
         
         # Convert to BSON
         bson_query_vector = generate_bson_vector(
             query_embedding_np,
-            BinaryVectorDtype.INT8 if use_int8 else BinaryVectorDtype.FLOAT32
+            BinaryVectorDtype.FLOAT32
         )
         
         # Create search pipeline
         vector_search_stage = {
             'index': config.VECTOR_INDEX_NAME,
-            'path': 'embedding_int8' if use_int8 else 'embedding_float',
+            'path': 'embedding_float',
             'queryVector': bson_query_vector,
             'numCandidates': 100,
             'limit': 5
