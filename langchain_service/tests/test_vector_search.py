@@ -15,7 +15,7 @@ class VectorSearchTester:
         response = self.session.get(f"{self.base_url}/health")
         return response.json()
     
-    def vector_search(self, query: str, filters: dict = None, use_int8: bool = False) -> Dict:
+    def vector_search(self, query: str, filters: dict = None) -> Dict:
         """Send a vector search request to the API"""
         headers = {
             "Content-Type": "application/json"
@@ -23,7 +23,6 @@ class VectorSearchTester:
         data = {
             "query": query,
             "filters": filters,
-            "use_int8": use_int8
         }
         response = self.session.post(
             f"{self.base_url}/vector-search",
@@ -56,14 +55,12 @@ class VectorSearchTester:
             print("-" * 60)
             print(f"Query: {test_case['query']}")
             print(f"Filters: {test_case.get('filters', {})}")
-            print(f"Use Int8: {test_case.get('use_int8', False)}")
             
             try:
                 start_time = time.time()
                 result = self.vector_search(
                     query=test_case['query'],
                     filters=test_case.get('filters'),
-                    use_int8=test_case.get('use_int8', False)
                 )
                 end_time = time.time()
                 
@@ -88,7 +85,6 @@ class VectorSearchTester:
             time.sleep(1)  # Small delay between queries
 
 if __name__ == "__main__":
-    # Test cases with use_int8 parameter
     test_cases = [
         {
             "query": "Seller: Davis PLC 72057 Castillo Via Deniseshire, KY 95233",
@@ -96,12 +92,20 @@ if __name__ == "__main__":
                 "invoice_no": "39280409",
                 "date": "07/06/2014",
             },
-            "use_int8": False
+        },
+        {
+            "query": "",
+            "filters": {
+                "client_tax_id": "979-85-9143"
+            },
         },
         {
             "query": "Items: Description: BUYPOWER Gaming Computer AMD Ryzen 3 3100",
             "filters": {},
-            "use_int8": False
+        },
+        {
+            "query": "Hoffman-Daniel 916 James Parks Suite 518 Bryanfurt",
+            "filters": {},
         },
     ]
     
