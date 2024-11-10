@@ -28,7 +28,8 @@ class InvoiceDocument:
             f"Seller: {self.header.get('seller', '')} | "
             f"Seller Tax ID: {self.header.get('seller_tax_id', '')} | "
             f"Client: {self.header.get('client', '')} | "
-            f"Client Tax ID: {self.header.get('client_tax_id', '')}"
+            f"Client Tax ID: {self.header.get('client_tax_id', '')} |"
+            f"IBAN: {self.header.get('iban', '')}"
         )
         
         items_text = "Items: " + " | ".join(
@@ -110,7 +111,10 @@ def load_data_to_mongodb(collection, data_file, config: Config) -> List[Document
                         "invoice_no": invoice.header.get('invoice_no', ''),
                         "date": invoice.header.get('invoice_date', ''),
                         "seller": invoice.header.get('seller', ''),
-                        "client": invoice.header.get('client', '')
+                        "client": invoice.header.get('client', ''),
+                        "seller_tax_id": invoice.header.get('seller_tax_id', ''),
+                        "client_tax_id": invoice.header.get('client_tax_id', ''),
+                        "iban": invoice.header.get('iban', '')
                     }
                 )
                 
@@ -205,11 +209,9 @@ def create_embeddings_for_documents(documents: List[Document], embeddings_model:
     
     # Convert to numpy arrays
     float32_arrays = [np.array(emb, dtype=np.float32) for emb in raw_embeddings]
-    int8_arrays = [np.array(emb, dtype=np.int8) for emb in raw_embeddings]
     
     # Debug: Print arrays before BSON conversion
     print("Float32 array (first 5 values):", float32_arrays[0][:5])
-    print("Int8 array (first 5 values):", int8_arrays[0][:5])
     
     # Convert to BSON format
     bson_float32_embeddings = [
@@ -217,12 +219,7 @@ def create_embeddings_for_documents(documents: List[Document], embeddings_model:
         for f32_arr in float32_arrays
     ]
     
-    bson_int8_embeddings = [
-        generate_bson_vector(int8_arr, BinaryVectorDtype.INT8)
-        for int8_arr in int8_arrays
-    ]
-    
-    return bson_float32_embeddings, bson_int8_embeddings
+    return bson_float32_embeddings
 
 
 def create_or_load_vector_store(collection, documents: List[Document], config: Config):
@@ -244,7 +241,7 @@ def create_or_load_vector_store(collection, documents: List[Document], config: C
                 collection=collection,
                 embedding=embeddings_model,
                 index_name=config.VECTOR_INDEX_NAME,
-                embedding_key="embedding_float",  # Using float32 as primary embedding
+                embedding_key="embedding_float", 
                 text_key="page_content",
                 metadata_key="metadata"
             )
@@ -253,20 +250,19 @@ def create_or_load_vector_store(collection, documents: List[Document], config: C
         print("Creating new vector store from documents...")
         
         # Generate BSON embeddings
-        bson_float32_embeddings, bson_int8_embeddings = create_embeddings_for_documents(
+        bson_float32_embeddings = create_embeddings_for_documents(
             documents, embeddings_model
         )
         
         # Create documents with embeddings
         docs_to_insert = []
-        for i, (doc, f32_emb, int8_emb) in enumerate(zip(
-            documents, bson_float32_embeddings, bson_int8_embeddings
+        for i, (doc, f32_emb) in enumerate(zip(
+            documents, bson_float32_embeddings
         )):
             mongo_doc = {
                 "page_content": doc.page_content,
                 "metadata": doc.metadata,
                 "embedding_float": f32_emb,
-                "embedding_int8": int8_emb
             }
             docs_to_insert.append(mongo_doc)
         
