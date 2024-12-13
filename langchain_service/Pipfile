@@ -30,4 +30,4 @@ mypy = "*"  # Optional: for type checking
 flake8 = "*"  # Optional: for code style checking
 
 [requires]
-python_version = "3.9"
+python_version = "3.10"
